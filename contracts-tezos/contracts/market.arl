@@ -1,0 +1,273 @@
+archetype market(owner: address)
+
+//----------------------------------------------------------------------------
+// Constants
+//----------------------------------------------------------------------------
+constant MISSING_OWNER_CANDIDATE  : string = "MISSING_OWNER_CANDIDATE"
+constant INVALID_CALLER           : string = "INVALID_CALLER"
+constant CONTRACT_PAUSED          : string = "CONTRACT_PAUSED"
+constant CONTRACT_NOT_PAUSED      : string = "CONTRACT_NOT_PAUSED"
+constant NOT_AUTHORIZED : string = "NOT_AUTHORIZED"
+
+//----------------------------------------------------------------------------
+// Owner role transfer
+//----------------------------------------------------------------------------
+
+variable owner_candidate : option<address> = none
+variable default_fee : rational = 0.1
+variable default_royalty : rational = 0.1
+variable treasury : address = owner
+ 
+/**
+* Declares candidate for ownership
+* @param candidate address
+*/
+entry declare_ownership(candidate : address) {
+  called by owner
+  effect {
+    owner_candidate := some(candidate);
+  }
+}
+
+/**
+* Claims ownership of the contract
+* Note: fails if caller is not declared candidate
+*/
+entry claim_ownership() {
+  constant {
+    owner_candidate_addr ?is owner_candidate otherwise MISSING_OWNER_CANDIDATE;
+  }
+  require {
+    co1: owner_candidate_addr = caller otherwise INVALID_CALLER
+  }
+  effect {
+    owner := owner_candidate_addr;
+    owner_candidate := none
+  }
+}
+
+
+//----------------------------------------------------------------------------
+// Contract execution pause/resume
+//----------------------------------------------------------------------------
+
+variable paused : bool = false
+
+/**
+ * Pause the contract execution
+ */
+entry pause() {
+  called by owner
+  require {
+    pausable_r1: is_not_paused()
+  }
+  effect {
+    paused := true
+  }
+}
+
+/**
+ * Resume the contract execution
+ */
+entry unpause() {
+  called by owner
+  require {
+    pausable_r2: paused otherwise CONTRACT_NOT_PAUSED
+  }
+  effect {
+    paused := false
+  }
+}
+
+/**
+ * Asserts that the contract execution is not paused
+ */
+function is_not_paused() : bool {
+  do_fail_if(paused, CONTRACT_PAUSED);
+  return true
+}
+
+//----------------------------------------------------------------------------
+// Data types
+//----------------------------------------------------------------------------
+
+asset order identified by orderid to big_map {
+    orderid: nat;
+    asset_address : address;
+    otoken_id: nat;
+    token_value : nat;
+    orderowner : address;
+    price : tez;
+    ended: bool;
+    fee: rational;
+    royalty: rational;
+}
+
+//----------------------------------------------------------------------------
+// Admin functions
+//----------------------------------------------------------------------------
+
+entry set_treasury( new_treasury_address : address) {
+  require {
+    set_treasury_1: caller = owner otherwise NOT_AUTHORIZED;
+  }
+  effect {
+    treasury := new_treasury_address;
+  }
+}
+
+entry set_default_fee( new_fee : rational) {
+  require {
+    set_fee_1: caller = owner otherwise NOT_AUTHORIZED;
+  }
+  effect {
+    default_fee := new_fee;
+  }
+}
+
+entry set_default_royalty(new_royalty : rational) {
+  require {
+    set_royalty_1: caller = owner otherwise NOT_AUTHORIZED;
+  }
+  effect {
+    default_royalty := new_royalty;
+  }
+}
+
+//----------------------------------------------------------------------------
+// Marketplace functions
+//----------------------------------------------------------------------------
+
+variable order_id_count : nat = 0
+
+record fa2_transfer_param {
+  destination_address: address;
+  token_id: nat;
+  token_amount: nat
+} as ((%to, (token_id, amount)))
+
+getter current_order_id() : nat {
+  return order_id_count
+}
+
+entry create(
+  corder_id : nat, 
+  casset_address : address, 
+  ctoken_id : nat, 
+  ctoken_value : nat,
+  cprice : tez
+  ) {
+    require {
+      create_r1: order.contains(corder_id) = false otherwise "Given ID is occupied"; 
+      create_r2 : cprice > 0tz otherwise "Invalid Price";
+      create_r3 : ctoken_id > 0 otherwise "Invalid Token Value";
+      create_r4 : is_not_paused();
+    }
+    effect {
+      order.add({
+        orderid = corder_id;
+        asset_address = casset_address;
+        otoken_id = ctoken_id;
+        token_value = ctoken_value;
+        orderowner = caller;
+        price = cprice;
+        fee = default_fee;
+        royalty = default_royalty;
+        ended = false
+      });
+
+      order_id_count  += 1;
+    }
+}
+
+entry cancel(
+  corder_id : nat
+) {
+  require {
+      cancel_r1: order[corder_id].ended = false otherwise "Given ID is invalid"; 
+      cancel_r2 : order[corder_id].orderowner = caller otherwise "You are not the owner";
+      cancel_r3 : is_not_paused();
+  }
+  effect { 
+    order.update( corder_id , { ended = true } );
+  }
+}
+
+entry update_royalty(corder_id : nat, updated_royalty : rational) {
+  require {
+      update_royalty_r1: order[corder_id].ended = false otherwise "Given ID is invalid"; 
+      update_royalty_r2 : caller = owner otherwise NOT_AUTHORIZED;
+  }
+  effect {
+    order.update( corder_id , { royalty = updated_royalty } );
+  }
+}
+
+entry update_fee(corder_id : nat, updated_fee : rational) {
+  require {
+      update_fee_r1: order[corder_id].ended = false otherwise "Given ID is invalid"; 
+      update_fee_r2 : caller = owner otherwise NOT_AUTHORIZED;
+  }
+  effect {
+    order.update( corder_id , { fee = updated_fee } );
+  }
+}
+
+entry swap(corder_id : nat) {
+  require {
+      swap_r1: order[corder_id].ended = false otherwise "Given ID is invalid";
+      swap_r2 : is_not_paused();
+      swap_r3 : order[corder_id].price = transferred otherwise "Invalid price";
+  }
+  effect {
+
+    // take
+    var to_order_owner = (1 - (order[corder_id].fee + order[corder_id].royalty)) * order[corder_id].price;
+    var to_token_owner = order[corder_id].royalty * order[corder_id].price;
+    var to_treasury = order[corder_id].price-to_order_owner;
+
+    match call_view<option<address>>(
+              order[corder_id].asset_address,
+           "token_owner",
+           (
+               order[corder_id].otoken_id
+            )
+    )
+    with 
+    | some(v) -> match v with
+        | some(
+            token_owner_address) -> (transfer to_token_owner to token_owner_address;
+            to_treasury -= to_token_owner
+          )
+        | none -> ()
+        end
+    | none -> () 
+    end;
+    
+    transfer to_order_owner to order[corder_id].orderowner;
+    transfer to_treasury to (treasury);
+
+    // give
+    transfer 0tz to order[corder_id].asset_address call %transfer<list<address * list<fa2_transfer_param>>>(
+      [
+        (
+          order[corder_id].orderowner,
+            [
+              {
+                destination_address = caller;
+                token_id = order[corder_id].otoken_id;
+                token_amount = 1
+              }
+            ]
+        )
+      ]
+    );
+
+    order.update(corder_id  , { token_value -= 1});
+
+    if order[corder_id].token_value = 0 then (
+      order.update(corder_id  , { ended = true})
+    );
+
+  }
+}
