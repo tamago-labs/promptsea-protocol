@@ -18,11 +18,25 @@ npm install
 npx hardhat test
 ```
 
+```
+cd contracts-tezos
+npm install
+npm run gen-binding
+npm test
+```
+
 For testing, we're using the MockAPI for PromptNetwork to demonstrate, while the production API has been deployed and is running on AWS cloud, based on serverless architecture.
 
 ## Deployment
 
-### Polygon (Chain id : 137) 
+### Tezos
+
+Contract Name | Contract Address 
+--- | --- 
+Market | KT1K7SNM9xE232hCrH1k6P6wxBGP4djmRmUs
+Item | KT1MYqjWMRVNW2wHA1yqCSLGfshNdjiJ4d4g
+
+### Polygon
 
 Contract Name | Contract Address 
 --- | --- 
@@ -30,7 +44,7 @@ Market | 0x838596631568713c2c7D3d7a1fFa44347e361550
 Item | 0x3c62f937B252080DE878a1f99ED9390cb8d36554
 Paymaster | 0x2d357877E55697Cf30404aE835e0702648e75df6
 
-### BNB (Chain id : 56) 
+### BNB
 
 Contract Name | Contract Address 
 --- | --- 
