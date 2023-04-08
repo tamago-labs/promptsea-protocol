@@ -38,8 +38,9 @@ describe('[Item NFT] Authorize new token', async () => {
 
         const current_count = await item.current_token_id({ as: alice })
         assert(`${current_count}` === "1")
-        const token_owner = await item.token_owner(new Nat(1), { as: alice })
-        assert(token_owner.toString() === Option.Some(alice.get_address()).toString())
+        const token_owner = await item.view_token_owner(new Nat(1), { as: alice })
+
+        assert(token_owner === Option.Some(alice.get_address()))
 
         // check uri
         const uri = await item.uri(new Nat(1), { as: alice })
@@ -73,10 +74,10 @@ describe('[Item NFT] Authorize new token', async () => {
                 }
             );
         }, item.errors.fa2_r5)
-        
-        await item.set_token_uri( new Nat(1), [["", mock_url]] , { as : alice })
+
+        await item.set_token_uri(new Nat(1), [["", mock_url]], { as: alice })
         const uri = await item.uri(new Nat(1), { as: alice })
-        assert(uri[0][1].equals( mock_url ))
+        assert(uri[0][1].equals(mock_url))
 
         // update price
         await expect_to_fail(async () => {
@@ -94,25 +95,25 @@ describe('[Item NFT] Authorize new token', async () => {
         assert(token_price.equals(new Tez(2)))
 
         // update fee
-        let current_fee = await item.get_token_fee( new Nat(1) , {as : alice})
-        assert( current_fee.to_number() === 0.1 )
+        let current_fee = await item.get_token_fee(new Nat(1), { as: alice })
+        assert(current_fee.to_number() === 0.1)
 
-        await item.set_token_fee( new Nat(1), new Rational(0.15) , {as : alice })
+        await item.set_token_fee(new Nat(1), new Rational(0.15), { as: alice })
 
-        current_fee = await item.get_token_fee( new Nat(1) , {as : alice})
-        assert( current_fee.to_number() === 0.15)
+        current_fee = await item.get_token_fee(new Nat(1), { as: alice })
+        assert(current_fee.to_number() === 0.15)
     })
 
     it('Bob mints an NFT should succeed', async () => {
 
         // mint
-        await item.mint( bob.get_address(), new Nat(1) , new Nat(1) , { as : bob, amount : new Tez(2)})
+        await item.mint(bob.get_address(), new Nat(1), new Nat(1), { as: bob, amount: new Tez(2) })
         const my_balance = await item.balance_of([new balance_of_request(bob.get_address(), new Nat(1))], { as: bob })
         assert(my_balance[0].balance_.equals(new Nat(1)))
 
         // check current supply
         const my_current_supply = await item.get_current_supply(new Nat(1), { as: bob })
-        assert(my_current_supply.equals( new Nat(2)))
+        assert(my_current_supply.equals(new Nat(2)))
     })
 
     it('Bob transfers an NFT to Carl should succeed', async () => {
@@ -135,13 +136,13 @@ describe('[Item NFT] Authorize new token', async () => {
 
     it('Charlie burns an NFT should succeed', async () => {
 
-        await item.burn( new Nat(1), new Nat(1) , { as : carl })
+        await item.burn(new Nat(1), new Nat(1), { as: carl })
 
         const carl_balance = await item.balance_of([new balance_of_request(carl.get_address(), new Nat(1))], { as: carl })
         assert(carl_balance[0].balance_.equals(new Nat(0)))
 
         const total = await item.get_total_burnt(new Nat(1), { as: carl })
-        assert(total.equals( new Nat(1)))
+        assert(total.equals(new Nat(1)))
 
     })
 
@@ -157,9 +158,10 @@ describe('[Item NFT] Authorize new token', async () => {
                 }
             );
         }, item.errors.fa2_r10)
-        await item.transfer_token_owner( new Nat(1) , bob.get_address() , { as : alice } )
-        const new_token_owner = await item.token_owner(new Nat(1), { as: alice })
-        assert(new_token_owner.toString() === Option.Some(bob.get_address()).toString())
+        await item.transfer_token_owner(new Nat(1), bob.get_address(), { as: alice })
+        const new_token_owner = await item.view_token_owner(new Nat(1), { as: alice })
+
+        assert(new_token_owner  === Option.Some(bob.get_address()))
 
     })
 
