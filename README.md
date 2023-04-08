@@ -18,6 +18,8 @@ npm install
 npx hardhat test
 ```
 
+Smart contracts on Tezos have been written in Archetype using completium-cli, which streamlines the workflow similar to the way Hardhat does.
+
 ```
 cd contracts-tezos
 npm install
