@@ -1,0 +1,20 @@
+{
+  "name": "promptsea-protocol",
+  "version": "1.0.0",
+  "description": "A set of components to help protect private data in NFT",
+  "main": "index.js",
+  "repository": "https://github.com/tamago-labs/promptsea-protocol",
+  "author": "pisuthd <pisuth.dae@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "contracts-evm/*",
+    "contracts-tezos/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "yarn --cwd apps/frontend start",
+    "next": "yarn --cwd apps/nextapp dev",
+    "dev": "npm-run-all --parallel start next"
+  }
+}
