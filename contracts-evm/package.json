@@ -1,5 +1,7 @@
 {
-  "name": "hardhat-project",
+  "name": "contracts-evm",
+  "version": "1.0.0",
+  "license": "MIT",
   "dependencies": {
     "@opengsn/contracts": "2.2.5",
     "@openzeppelin/contracts": "^4.6.0",
